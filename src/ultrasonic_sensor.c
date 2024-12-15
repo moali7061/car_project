@@ -17,19 +17,31 @@ void send_trigger_pulse() {
 }
 
 uint32_t measure_echo_time() {
-    while (gpio_get(ECHO_PIN) == 0)  ; // Wait for Echo to go high
-    absolute_time_t start_time = get_absolute_time();  // Start timing
-    printf(" entered %.2f " , start_time ) ; 
-    while (gpio_get(ECHO_PIN) == 1) ;  // Wait for Echo to go low
-    absolute_time_t end_time = get_absolute_time();  // Stop timing
-    printf("end time %.2f " , end_time  ) ; 
-    // Calculate pulse width (in microseconds)
-    return (uint32_t)absolute_time_diff_us(start_time, end_time);
+    uint64_t start_time = to_us_since_boot(get_absolute_time());
+    while (gpio_get(ECHO_PIN) == 0) {
+        if (to_us_since_boot(get_absolute_time()) - start_time > 50000) {
+            printf("Timeout waiting for echo high\n");
+            return 0; // Timeout
+        }
+    }
+
+    start_time = to_us_since_boot(get_absolute_time());
+    while (gpio_get(ECHO_PIN) == 1) {
+        if (to_us_since_boot(get_absolute_time()) - start_time > 50000) {
+            printf("Timeout waiting for echo low\n");
+            return 0; // Timeout
+        }
+    }
+
+    uint64_t end_time = to_us_since_boot(get_absolute_time());
+    return (uint32_t)(end_time - start_time); // Time in microseconds
 }
 
+
 float calculate_distance(uint32_t echo_time) {
-    // Speed of sound in cm/us
+    if (echo_time == 0) {
+        return -1; // Invalid measurement
+    }
     const float speed_of_sound = 0.0343;
-    // Distance = (time * speed) / 2 (because it’s a round trip)
-    return (echo_time * speed_of_sound) / 2.0 ;
+    return (echo_time * speed_of_sound) / 2.0;
 }

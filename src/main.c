@@ -224,48 +224,88 @@ volatile uint8_t received_data = 0;
 volatile float current_distance = 0.0;
 
 // Combined Task: Handles UART commands, motor control, and sensor checks
+// Combined Task: Handles UART commands, motor control, and sensor checks
 void main_task(void *pvParameters) {
     while (1) {
-        // Process UART commands
+        // Check for UART commands
         if (uart_is_readable(UART_ID)) {
             received_data = uart_getc(UART_ID);
 
             switch (received_data) {
-                case 'f': // Move forward
-                    move_forward(150);
-                    sleep_ms(3000);
+                case 'f': { // Move forward continuously
                     printf("Moving forward...\n");
-                    break;
+                    move_forward(200);
 
-                case 'b': // Move backward
-                    move_backward(150);
-                    printf("Moving backward...\n");
-                    if (!infrared_sensor_is_triggered(IR_SENSOR_PIN)) {
-                        printf("Object detected! Stopping...\n");
-                        move_backward(0);
-                        lamp_on();  // Turn on the lamp
-                        sleep_ms(3000);
-                        lamp_off(); // Turn off the lamp
+                    while (1) {
+                        // Ultrasonic sensor logic
+                        send_trigger_pulse();
+                        uint32_t echo_time = measure_echo_time();
+                        current_distance = calculate_distance(echo_time);
+
+                        if (current_distance > 0 && current_distance < DISTANCE_THRESHOLD) {
+                            printf("Obstacle detected! Stopping forward movement. Distance: %.2f cm\n", current_distance);
+                            move_forward(0);  // Stop motors
+                            lamp_on();
+                            vTaskDelay(pdMS_TO_TICKS(3000)); // Lamp stays on for 3 seconds
+                            lamp_off();
+                            break; // Exit forward movement loop
+                        }
+
+                        // Check for a new UART command to override forward movement
+                        if (uart_is_readable(UART_ID)) {
+                            received_data = uart_getc(UART_ID);
+                            move_forward(0);  // Stop motors before processing the new command
+                            break; // Exit forward movement loop and handle new command
+                        }
+
+                        vTaskDelay(pdMS_TO_TICKS(50)); // Small delay for responsiveness
                     }
                     break;
+                }
+
+                case 'b': { // Move backward continuously with IR sensor check
+                    printf("Moving backward...\n");
+                    move_backward(200);
+
+                    while (1) {
+                        if (!infrared_sensor_is_triggered(IR_SENSOR_PIN)) {
+                            printf("Object detected by IR sensor! Stopping backward movement.\n");
+                            move_backward(0);
+                            lamp_on();
+                            vTaskDelay(pdMS_TO_TICKS(3000)); // Lamp stays on for 3 seconds
+                            lamp_off();
+                            break;
+                        }
+
+                        // Check for a new UART command to override backward movement
+                        if (uart_is_readable(UART_ID)) {
+                            received_data = uart_getc(UART_ID);
+                            move_backward(0); // Stop motors before processing the new command
+                            break; // Exit backward movement loop and handle new command
+                        }
+
+                        vTaskDelay(pdMS_TO_TICKS(50)); // Small delay for responsiveness
+                    }
+                    break;
+                }
 
                 case 'l': // Turn left
-                    motor_control(150, true);
-                    sleep_ms(750);
-                    motor_control(0, true);
                     printf("Turning left...\n");
+                    motor_control(200, true);
+                    vTaskDelay(pdMS_TO_TICKS(750));
+                    motor_control(0, true);
                     break;
 
                 case 'r': // Turn right
-                    motor_control(150, false);
-                    sleep_ms(750);
-                    motor_control(0, false);
                     printf("Turning right...\n");
+                    motor_control(200, false);
+                    vTaskDelay(pdMS_TO_TICKS(750));
+                    motor_control(0, false);
                     break;
 
-                case 's': // Stop
-                    motor_control(0, true);
+                case 's': // Stop motors
                     printf("Stopped.\n");
+                    motor_control(0, true);
                     break;
 
                 default:
@@ -273,19 +313,10 @@ void main_task(void *pvParameters) {
             }
         }
 
-        // Ultrasonic sensor logic
-        send_trigger_pulse();
-        uint32_t echo_time = measure_echo_time();
-        current_distance = calculate_distance(echo_time);
-
-        if (current_distance > 0 && current_distance < DISTANCE_THRESHOLD) {
-            printf("Obstacle detected by ultrasonic sensor! Distance: %.2f cm\n", current_distance);
-            move_forward(0);  // Stop motors if moving forward
-        }
-
-        vTaskDelay(pdMS_TO_TICKS(100)); // Delay to yield control
+        vTaskDelay(pdMS_TO_TICKS(50)); // Delay to yield control
     }
 }
+
 
 // Main Function
 int main() {

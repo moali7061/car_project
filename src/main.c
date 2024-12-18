@@ -226,10 +226,15 @@ volatile float current_distance = 0.0;
 // Combined Task: Handles UART commands, motor control, and sensor checks
 // Combined Task: Handles UART commands, motor control, and sensor checks
 void main_task(void *pvParameters) {
+    printf("Main Task...\n");
     while (1) {
         // Check for UART commands
+        printf("UART readable: %d\n", uart_is_readable(UART_ID));
         if (uart_is_readable(UART_ID)) {
+            printf("READING FROM UART\n");
             received_data = uart_getc(UART_ID);
+            //printf(received_data);
+           // received_data = 'f';
 
             switch (received_data) {
                 case 'f': { // Move forward continuously
@@ -311,7 +316,7 @@ void main_task(void *pvParameters) {
                 default:
                     break;
             }
-        }
+       }
 
         vTaskDelay(pdMS_TO_TICKS(50)); // Delay to yield control
     }
@@ -322,6 +327,7 @@ void main_task(void *pvParameters) {
 int main() {
     // Initialize hardware
     stdio_init_all();
+    printf("Main Task...\n");
     motor_init();
     infrared_sensor_init(IR_SENSOR_PIN);
     lamp_init();
@@ -334,7 +340,6 @@ int main() {
     uart_set_baudrate(UART_ID, BAUD_RATE);
     uart_set_format(UART_ID, DATA_BITS, STOP_BITS, PARITY);
     uart_set_fifo_enabled(UART_ID, false);
-
     // Create FreeRTOS task
     xTaskCreate(main_task, "Main Task", MAIN_TASK_STACK_SIZE, NULL, MAIN_TASK_PRIORITY, NULL);
 

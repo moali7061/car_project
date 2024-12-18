@@ -12,13 +12,13 @@
 // #define RX_PIN 13   // UART RX pin
 
 
-#define UART_ID uart0
+#define UART_ID uart1
 #define BAUD_RATE 9600 // 
 #define DATA_BITS 8
 #define STOP_BITS 1
 #define PARITY    UART_PARITY_NONE
-#define UART_TX_PIN 12
-#define UART_RX_PIN 13
+#define UART_TX_PIN 20
+#define UART_RX_PIN 21
 
 // Function prototypes
 void setup_uart(void);
